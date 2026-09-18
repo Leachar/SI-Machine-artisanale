@@ -700,4 +700,14 @@ def _get_reference_matrices(mode):
             [8.743265680346098967e-03, 2.302559020199849982e-02]
         ])
         return [engrenage_1,engrenage_2,engrenage_3]
-    
+
+
+#Main 
+x0=-0.02
+y0=0
+L = [0.01,0.02,0.05]
+omega= [0.2,3,0.5]
+phi=[0.0,np.pi/2,np.pi/6]
+selection_mode=0
+precison=compute_precision(x0,y0,L,omega,phi,selection_mode, display_plot=True)
+plt.show()
