@@ -14,6 +14,7 @@ let path = [];
 function setup() {
   createCanvas(800, 600);
   const skip = 8;
+  //constante qui fais varier le nb de cercle et donc le nb de moteur
   for (let i = 0; i < drawing.length; i += skip) {
     const c = new Complex(drawing[i].x, drawing[i].y);
     x.push(c);
@@ -22,7 +23,10 @@ function setup() {
   fourierX.sort((a, b) => b.amp - a.amp);
 }
 
-function epicycles(x, y, rotation, fourier) {
+function epicycles(x, y, rotation, fourier) 
+//const maxcercles =50 
+//const nbcercles = min(maxcercles , fourier.length) et changer ds la boucle fourier.length par nbcercle
+{
   for (let i = 0; i < fourier.length; i++) {
     let prevx = x;
     let prevy = y;
