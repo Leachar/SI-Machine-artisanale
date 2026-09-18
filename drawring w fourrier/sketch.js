@@ -10,6 +10,8 @@ let x = [];
 let fourierX;
 let time = 0;
 let path = [];
+let completedpath = [];
+let isdrawingComplete = flase // savoir si le dessin est fin pret 
 
 function setup() {
   createCanvas(800, 600);
@@ -48,8 +50,10 @@ function epicycles(x, y, rotation, fourier)
 function draw() {
   background(0);
 
-  let v = epicycles(width / 2, height / 2, 0, fourierX);
-  path.unshift(v);
+  if (!isDrawingComplete){
+    let v = epicycles(width / 2, height / 2, 0, fourierX);
+    path.unshift(v);
+  }
 
   beginShape();
   noFill();
@@ -62,8 +66,12 @@ function draw() {
   time += dt;
 
   if (time > TWO_PI) {
-    time = 0;
-    path = [];
+    if (isDrawingComplete){
+      completedpath = [...path];
+      isDrawingComplete = True;
+
+      console.log("Dessin terminé ! Nombre de points enregistrés :",completedPath.length);
+    }
   }
 }
 
