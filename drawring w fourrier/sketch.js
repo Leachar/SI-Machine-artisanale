@@ -15,7 +15,7 @@ let isDrawingComplete = false; // savoir si le dessin est fini / prêt
 
 function setup() {
   createCanvas(800, 600);
-  const skip = 8;
+  const skip = 1;
   //constante qui fais varier le nb de cercle et donc le nb de moteur
   // compute bounding box and auto-scale/center the drawing to canvas
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -34,7 +34,7 @@ function setup() {
 
   for (let i = 0; i < drawing.length; i += skip) {
     const dx = (drawing[i].x - centerX) * scaleFactor;
-    const dy = (drawing[i].y - centerY) * scaleFactor;
+    const dy = -(drawing[i].y - centerY) * scaleFactor;
     const c = new Complex(dx, dy);
     x.push(c);
   }
@@ -69,7 +69,7 @@ function draw() {
 
   if (!isDrawingComplete) {
     let v = epicycles(width / 2, height / 2, 0, fourierX);
-    path.unshift(v);
+    path.push(v);
   }
 
   beginShape();
