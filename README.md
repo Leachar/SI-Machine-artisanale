@@ -1,5 +1,5 @@
 # SI-Machine-artisanale
-Création d'un logo centrale avec des machines arcticulées
+Création d'un logo centrale avec des machines articulées
 
 
 Inverse kinematics: tutorial and repository 
