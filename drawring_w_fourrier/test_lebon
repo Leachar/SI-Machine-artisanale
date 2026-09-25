@@ -1,0 +1,307 @@
+#!/usr/bin/env python3
+
+import argparse
+from pathlib import Path
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+
+# ============================================================
+# LECTURE DU FICHIER (RECHERCHE AUTO DANS LE DOSSIER DU SCRIPT)
+# ============================================================
+
+def load_points(filename):
+    """
+    Charge un fichier TXT. Cherche automatiquement dans le dossier du script.
+    """
+    script_dir = Path(__file__).parent
+    filepath = script_dir / filename
+
+    if not filepath.exists():
+        filepath = Path(filename)
+
+    if not filepath.exists():
+        raise FileNotFoundError(
+            f"\n❌ Le fichier '{filename}' est introuvable.\n"
+            f"📍 Chemin vérifié : {filepath.resolve()}\n"
+            f"👉 Assurez-vous que le fichier est bien dans le dossier :\n"
+            f"   {script_dir.resolve()}"
+        )
+
+    points = []
+    with open(filepath, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            parts = line.replace(",", " ").split()
+            if len(parts) < 2:
+                continue
+
+            try:
+                x = float(parts[0])
+                y = float(parts[1])
+                points.append([x, y])
+            except ValueError:
+                continue
+
+    if len(points) < 3:
+        raise ValueError("Le fichier doit contenir au moins 3 points valides.")
+
+    return np.array(points, dtype=float)
+
+
+# ============================================================
+# REECHANTILLONNAGE
+# ============================================================
+
+def resample_curve(points, n_samples):
+    if not np.allclose(points[0], points[-1]):
+        points = np.vstack([points, points[0]])
+
+    differences = np.diff(points, axis=0)
+    distances = np.sqrt(np.sum(differences ** 2, axis=1))
+    cumulative = np.concatenate([[0], np.cumsum(distances)])
+    total_length = cumulative[-1]
+
+    if total_length == 0:
+        raise ValueError("Tous les points du fichier sont identiques.")
+
+    new_distances = np.linspace(0, total_length, n_samples, endpoint=False)
+    x = np.interp(new_distances, cumulative, points[:, 0])
+    y = np.interp(new_distances, cumulative, points[:, 1])
+
+    return x, y
+
+
+# ============================================================
+# TRANSFORMEE DE FOURIER
+# ============================================================
+
+def compute_fourier(x, y, n_circles):
+    z = x + 1j * y
+    N = len(z)
+
+    coefficients = np.fft.fft(z) / N
+    frequencies = np.fft.fftfreq(N)
+    integer_frequencies = np.round(frequencies * N).astype(int)
+
+    indices = np.argsort(np.abs(coefficients))[::-1]
+    n_circles = min(n_circles, N)
+    selected = indices[:n_circles]
+
+    circles = []
+    for i in selected:
+        coefficient = coefficients[i]
+        circles.append({
+            "frequency": int(integer_frequencies[i]),
+            "coefficient": coefficient,
+            "radius": abs(coefficient),
+            "phase": np.angle(coefficient)
+        })
+
+    return circles
+
+
+def calculate_angular_velocity(frequency, period):
+    return 2 * np.pi * frequency / period
+
+
+# ============================================================
+# EXPORTATION DES DONNÉES DANS UN FICHIER TXT
+# ============================================================
+
+def export_fourier_data(circles, period, input_filename):
+    """
+    Exporte les valeurs de phases, rayons, vitesses et positions initiales dans un fichier TXT.
+    """
+    script_dir = Path(__file__).parent
+    input_path = Path(input_filename)
+    output_filename = f"{input_path.stem}_fourier_params.txt"
+    output_path = script_dir / output_filename
+
+    # Calcul de la position initiale du stylet à t=0 (somme de tous les vecteurs complexes à t=0)
+    pos_x_0 = sum(c["coefficient"].real for c in circles)
+    pos_y_0 = sum(c["coefficient"].imag for c in circles)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("====================================================================================\n")
+        f.write(f"                    PARAMÈTRES DE FOURIER - FICHIER : {input_filename}\n")
+        f.write("====================================================================================\n\n")
+
+        f.write("--- 1. INFORMATIONS GÉNÉRALES ---\n")
+        f.write(f"Nombre de cercles (harmoniques) : {len(circles)}\n")
+        f.write(f"Période de rotation totale (T)  : {period:.4f} secondes\n")
+        f.write(f"Position initiale du traceur (t=0):\n")
+        f.write(f"  -> X_origine = {pos_x_0:.6f}\n")
+        f.write(f"  -> Y_origine = {pos_y_0:.6f}\n\n")
+
+        f.write("--- 2. DÉTAIL DES CERCLES / BARRES ---\n")
+        header = f"{'N°':<4} | {'Longueur / Rayon':<18} | {'Vitesse (rad/s)':<16} | {'Fréquence (Hz)':<14} | {'Phase t=0 (rad)':<16} | {'Phase t=0 (deg)':<14}\n"
+        f.write(header)
+        f.write("-" * len(header) + "\n")
+
+        for idx, c in enumerate(circles, start=1):
+            radius = c["radius"]
+            freq = c["frequency"]
+            omega = calculate_angular_velocity(freq, period)
+            phase_rad = c["phase"]
+            phase_deg = np.degrees(phase_rad)
+
+            line = f"{idx:<4} | {radius:<18.6f} | {omega:<16.6f} | {freq:<14.2f} | {phase_rad:<16.6f} | {phase_deg:<14.2f}\n"
+            f.write(line)
+
+        f.write("-" * len(header) + "\n")
+
+    print(f"📄 Données exportées avec succès dans le fichier : {output_filename}")
+
+
+# ============================================================
+# ANIMATION
+# ============================================================
+
+def animate_fourier(circles, original_x, original_y, period, title=""):
+    frames = 400
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    margin = max(np.ptp(original_x), np.ptp(original_y)) * 0.2
+    ax.set_xlim(np.min(original_x) - margin, np.max(original_x) + margin)
+    ax.set_ylim(np.min(original_y) - margin, np.max(original_y) + margin)
+    ax.set_aspect("equal")
+    ax.grid(True, alpha=0.2)
+    ax.set_title(f"Fourier : {title} ({len(circles)} cercles)")
+
+    ax.plot(original_x, original_y, color="gray", alpha=0.3, linewidth=1, label="Original")
+
+    circle_lines = [ax.plot([], [], color="blue", alpha=0.3)[0] for _ in circles]
+    center_points = [ax.plot([], [], "o", color="red", markersize=2)[0] for _ in circles]
+    trace, = ax.plot([], [], color="black", linewidth=2, label="Tracé")
+    tip, = ax.plot([], [], "o", color="red", markersize=4)
+
+    trace_x, trace_y = [], []
+
+    def update(frame):
+        if frame == 0:
+            trace_x.clear()
+            trace_y.clear()
+
+        t = (frame / frames) * period
+        center = 0j
+
+        for i, circle in enumerate(circles):
+            omega = calculate_angular_velocity(circle["frequency"], period)
+            vector = circle["coefficient"] * np.exp(1j * omega * t)
+
+            theta = np.linspace(0, 2 * np.pi, 50)
+            circle_x = center.real + circle["radius"] * np.cos(theta)
+            circle_y = center.imag + circle["radius"] * np.sin(theta)
+
+            circle_lines[i].set_data(circle_x, circle_y)
+            center_points[i].set_data([center.real], [center.imag])
+
+            center += vector
+
+        trace_x.append(center.real)
+        trace_y.append(center.imag)
+
+        trace.set_data(trace_x, trace_y)
+        tip.set_data([center.real], [center.imag])
+
+        return circle_lines + center_points + [trace, tip]
+
+    anim = FuncAnimation(fig, update, frames=frames, interval=20, blit=True, repeat=True)
+    plt.legend(loc="upper right")
+    plt.show()
+
+
+# ============================================================
+# SELECTION INTERACTIVE DU FICHIER ET CERCLES
+# ============================================================
+
+def select_file_interactively():
+    files = {
+        "1": "lion.txt",
+        "2": "engrenages.txt",
+        "3": "abeilles.txt",
+        "4": "cadre.txt"
+    }
+
+    print("\n" + "=" * 50)
+    print("   1. CHOISISSEZ LE FICHIER A TRACER :")
+    print("=" * 50)
+    for key, name in files.items():
+        print(f"  [{key}] {name}")
+    print("=" * 50)
+
+    choice = input("Entrez un numéro (1-4) ou le nom du fichier : ").strip()
+
+    if choice in files:
+        return files[choice]
+    elif choice:
+        return choice
+    else:
+        print("Aucune saisie, sélection par défaut : lion.txt")
+        return "lion.txt"
+
+
+def select_circles_interactively(default_circles=40):
+    print("\n" + "=" * 50)
+    print("   2. NOMBRE DE CERCLES DE FOURIER :")
+    print("=" * 50)
+    choice = input(f"Combien de cercles souhaitez-vous ? (Défaut : {default_circles}) : ").strip()
+
+    if not choice:
+        print(f"Utilisation de la valeur par défaut : {default_circles} cercles")
+        return default_circles
+
+    try:
+        n = int(choice)
+        if n <= 0:
+            print(f"⚠️ Valeur invalide, utilisation de {default_circles} cercles.")
+            return default_circles
+        return n
+    except ValueError:
+        print(f"⚠️ Entrée non valide, utilisation de {default_circles} cercles.")
+        return default_circles
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Analyse Fourier et animation.")
+    parser.add_argument("-f", "--file", default=None, help="Fichier TXT à charger")
+    parser.add_argument("-n", "--circles", type=int, default=None, help="Nombre de cercles")
+    parser.add_argument("-T", "--period", type=float, default=2.0, help="Période (secondes)")
+    parser.add_argument("--samples", type=int, default=1024, help="Nombre de points FFT")
+    parser.add_argument("--invert-y", action="store_true", help="Inverser l'axe Y")
+
+    args = parser.parse_args()
+
+    file_to_load = args.file if args.file else select_file_interactively()
+    n_circles = args.circles if args.circles is not None else select_circles_interactively(default_circles=40)
+
+    try:
+        points = load_points(file_to_load)
+    except Exception as e:
+        print(e)
+        return
+
+    x, y = resample_curve(points, args.samples)
+
+    if args.invert_y:
+        y = -y
+
+    circles = compute_fourier(x, y, n_circles)
+
+    # Export des données dans un fichier .txt
+    export_fourier_data(circles, args.period, file_to_load)
+
+    print(f"\n✅ Traitement terminé pour '{file_to_load}' ({len(circles)} cercles).")
+    print("Lancement de l'animation...")
+
+    animate_fourier(circles, x, y, args.period, title=file_to_load)
+
+
+if __name__ == "__main__":
+    main()
