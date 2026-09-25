@@ -1,0 +1,865 @@
+#!/usr/bin/env python3
+
+import argparse
+from pathlib import Path
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+
+# ============================================================
+# LECTURE DU FICHIER
+# ============================================================
+
+def load_points(filename):
+    """
+    Charge un fichier TXT contenant deux colonnes :
+
+        X Y
+
+    Les lignes commençant par # sont ignorées.
+    """
+
+    points = []
+
+    with open(filename, "r", encoding="utf-8") as f:
+
+        for line in f:
+
+            line = line.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            parts = line.replace(",", " ").split()
+
+            if len(parts) < 2:
+                continue
+
+            try:
+                x = float(parts[0])
+                y = float(parts[1])
+
+                points.append([x, y])
+
+            except ValueError:
+                continue
+
+    if len(points) < 3:
+        raise ValueError(
+            "Le fichier doit contenir au moins 3 points."
+        )
+
+    return np.array(points, dtype=float)
+
+
+# ============================================================
+# REECHANTILLONNAGE
+# ============================================================
+
+def resample_curve(points, n_samples):
+    """
+    Rééchantillonne le contour avec un espacement
+    approximativement uniforme entre les points.
+
+    La figure est considérée comme fermée.
+    """
+
+    # Fermer la figure
+    if not np.allclose(points[0], points[-1]):
+        points = np.vstack([
+            points,
+            points[0]
+        ])
+
+    # Différences entre points
+    differences = np.diff(points, axis=0)
+
+    distances = np.sqrt(
+        np.sum(differences ** 2, axis=1)
+    )
+
+    cumulative = np.concatenate([
+        [0],
+        np.cumsum(distances)
+    ])
+
+    total_length = cumulative[-1]
+
+    if total_length == 0:
+        raise ValueError(
+            "Les points du fichier sont tous identiques."
+        )
+
+    # Nouvelles positions régulièrement espacées
+    new_distances = np.linspace(
+        0,
+        total_length,
+        n_samples,
+        endpoint=False
+    )
+
+    x = np.interp(
+        new_distances,
+        cumulative,
+        points[:, 0]
+    )
+
+    y = np.interp(
+        new_distances,
+        cumulative,
+        points[:, 1]
+    )
+
+    return x, y
+
+
+# ============================================================
+# TRANSFORMEE DE FOURIER
+# ============================================================
+
+def compute_fourier(x, y, n_circles):
+
+    """
+    Calcule les coefficients de Fourier du contour.
+
+    Le contour est transformé en signal complexe :
+
+        z = x + i*y
+
+    """
+
+    z = x + 1j * y
+
+    N = len(z)
+
+    # Transformée de Fourier
+    coefficients = np.fft.fft(z) / N
+
+    # Fréquences
+    frequencies = np.fft.fftfreq(N)
+
+    integer_frequencies = np.round(
+        frequencies * N
+    ).astype(int)
+
+    # Trier selon l'amplitude
+    indices = np.argsort(
+        np.abs(coefficients)
+    )[::-1]
+
+    # Limiter le nombre de cercles
+    n_circles = min(
+        n_circles,
+        N
+    )
+
+    selected = indices[:n_circles]
+
+    circles = []
+
+    for i in selected:
+
+        coefficient = coefficients[i]
+
+        circles.append({
+
+            "frequency": int(
+                integer_frequencies[i]
+            ),
+
+            "coefficient": coefficient,
+
+            "radius": abs(
+                coefficient
+            ),
+
+            "phase": np.angle(
+                coefficient
+            )
+        })
+
+    return circles
+
+
+# ============================================================
+# VITESSE ANGULAIRE
+# ============================================================
+
+def calculate_angular_velocity(frequency,period):
+    """
+    Calcule la vitesse angulaire :
+
+        omega = 2*pi*f
+
+    avec :
+
+        f = frequency / period
+    """
+
+    return (
+        2
+        * np.pi
+        * frequency
+        / period
+    )
+
+
+# ============================================================
+# RECONSTRUCTION D'UN POINT
+# ============================================================
+
+def reconstruct(circles,t,period):
+    """
+    Calcule la position de l'extrémité
+    de la chaîne de cercles à l'instant t.
+    """
+
+    position = 0j
+
+    for circle in circles:
+
+        omega = calculate_angular_velocity(
+            circle["frequency"],
+            period
+        )
+
+        position += (
+            circle["coefficient"]
+            * np.exp(1j * omega * t)
+        )
+
+    return position
+
+
+# ============================================================
+# TRACE DE LA FIGURE ORIGINALE
+# ============================================================
+
+def plot_original(x,y):
+    """
+    Trace uniquement la figure originale.
+    """
+
+    plt.figure(
+        figsize=(8, 8)
+    )
+
+    plt.plot(
+        x,
+        y,
+        color="black",
+        linewidth=2
+    )
+
+    # Fermer visuellement la figure
+    plt.plot(
+        [x[-1], x[0]],
+        [y[-1], y[0]],
+        color="black",
+        linewidth=2
+    )
+
+    plt.scatter(
+        x,
+        y,
+        s=5,
+        color="red",
+        alpha=0.5
+    )
+
+    plt.axis("equal")
+
+    plt.grid(
+        True,
+        alpha=0.3
+    )
+
+    plt.title(
+        "Figure originale"
+    )
+
+    plt.xlabel("X")
+    plt.ylabel("Y")
+
+    plt.show()
+
+
+# ============================================================
+# TRACE DE LA RECONSTRUCTION
+# ============================================================
+
+def plot_fourier(
+    circles,
+    period,
+    n_points=1000
+):
+    """
+    Trace la figure reconstruite uniquement
+    avec les cercles de Fourier.
+    """
+
+    times = np.linspace(
+        0,
+        period,
+        n_points
+    )
+
+    positions = np.array([
+        reconstruct(
+            circles,
+            t,
+            period
+        )
+        for t in times
+    ])
+
+    plt.figure(
+        figsize=(8, 8)
+    )
+
+    plt.plot(
+        positions.real,
+        positions.imag,
+        color="blue",
+        linewidth=2
+    )
+
+    plt.axis("equal")
+
+    plt.grid(
+        True,
+        alpha=0.3
+    )
+
+    plt.title(
+        f"Reconstruction Fourier "
+        f"({len(circles)} cercles)"
+    )
+
+    plt.xlabel("X")
+    plt.ylabel("Y")
+
+    plt.show()
+
+
+# ============================================================
+# COMPARAISON ORIGINAL / FOURIER
+# ============================================================
+
+def plot_comparison(
+    original_x,
+    original_y,
+    circles,
+    period,
+    n_points=1000
+):
+    """
+    Affiche la figure originale et la reconstruction
+    Fourier sur le même graphique.
+    """
+
+    times = np.linspace(
+        0,
+        period,
+        n_points
+    )
+
+    positions = np.array([
+        reconstruct(
+            circles,
+            t,
+            period
+        )
+        for t in times
+    ])
+
+    plt.figure(
+        figsize=(10, 10)
+    )
+
+    # Figure originale
+    plt.plot(
+        original_x,
+        original_y,
+        color="black",
+        linewidth=2,
+        label="Originale"
+    )
+
+    # Reconstruction
+    plt.plot(
+        positions.real,
+        positions.imag,
+        color="red",
+        linestyle="--",
+        linewidth=1.5,
+        label="Fourier"
+    )
+
+    plt.axis("equal")
+
+    plt.grid(
+        True,
+        alpha=0.3
+    )
+
+    plt.legend()
+
+    plt.title(
+        f"Comparaison - "
+        f"{len(circles)} cercles"
+    )
+
+    plt.xlabel("X")
+    plt.ylabel("Y")
+
+    plt.show()
+
+
+# ============================================================
+# ANIMATION DES CERCLES
+# ============================================================
+
+def animate_fourier(
+    circles,
+    original_x,
+    original_y,
+    period
+):
+
+    frames = 600
+
+    fig, ax = plt.subplots(
+        figsize=(10, 10)
+    )
+
+    # Calcul des limites
+    all_x = original_x
+    all_y = original_y
+
+    margin = (
+        max(
+            np.ptp(all_x),
+            np.ptp(all_y)
+        )
+        * 0.2
+    )
+
+    ax.set_xlim(
+        np.min(all_x) - margin,
+        np.max(all_x) + margin
+    )
+
+    ax.set_ylim(
+        np.min(all_y) - margin,
+        np.max(all_y) + margin
+    )
+
+    ax.set_aspect("equal")
+
+    ax.grid(
+        True,
+        alpha=0.2
+    )
+
+    ax.set_title(
+        f"Cercles de Fourier "
+        f"({len(circles)} cercles)"
+    )
+
+    # Figure originale en arrière-plan
+    ax.plot(
+        original_x,
+        original_y,
+        color="gray",
+        alpha=0.25,
+        linewidth=1
+    )
+
+    # Cercles
+    circle_lines = []
+
+    # Centres
+    center_points = []
+
+    for _ in circles:
+
+        line, = ax.plot(
+            [],
+            [],
+            color="blue",
+            alpha=0.35
+        )
+
+        point, = ax.plot(
+            [],
+            [],
+            "o",
+            color="red",
+            markersize=3
+        )
+
+        circle_lines.append(line)
+        center_points.append(point)
+
+    # Trace de la figure
+    trace, = ax.plot(
+        [],
+        [],
+        color="black",
+        linewidth=2
+    )
+
+    # Pointe
+    tip, = ax.plot(
+        [],
+        [],
+        "o",
+        color="red",
+        markersize=5
+    )
+
+    trace_x = []
+    trace_y = []
+
+    def update(frame):
+
+        t = (
+            frame
+            / frames
+            * period
+        )
+
+        center = 0j
+
+        for i, circle in enumerate(circles):
+
+            omega = calculate_angular_velocity(
+                circle["frequency"],
+                period
+            )
+
+            vector = (
+                circle["coefficient"]
+                * np.exp(
+                    1j
+                    * omega
+                    * t
+                )
+            )
+
+            # Dessiner le cercle
+            theta = np.linspace(
+                0,
+                2 * np.pi,
+                100
+            )
+
+            circle_x = (
+                center.real
+                + circle["radius"]
+                * np.cos(theta)
+            )
+
+            circle_y = (
+                center.imag
+                + circle["radius"]
+                * np.sin(theta)
+            )
+
+            circle_lines[i].set_data(
+                circle_x,
+                circle_y
+            )
+
+            # Centre du cercle
+            center_points[i].set_data(
+                [center.real],
+                [center.imag]
+            )
+
+            # Nouveau centre
+            center = center + vector
+
+        # Ajouter la pointe à la trajectoire
+        trace_x.append(
+            center.real
+        )
+
+        trace_y.append(
+            center.imag
+        )
+
+        trace.set_data(
+            trace_x,
+            trace_y
+        )
+
+        tip.set_data(
+            [center.real],
+            [center.imag]
+        )
+
+        return (
+            circle_lines
+            + center_points
+            + [trace, tip]
+        )
+
+    animation = FuncAnimation(
+        fig,
+        update,
+        frames=frames,
+        interval=20,
+        blit=True,
+        repeat=True
+    )
+
+    plt.show()
+
+
+# ============================================================
+# FICHIER TXT DES PARAMETRES
+# ============================================================
+
+def save_parameters(
+    circles,
+    filename,
+    period
+):
+
+    with open(
+        filename,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(
+            "# Parametres des cercles de Fourier\n"
+        )
+
+        f.write(
+            f"# Periode complete : {period} s\n"
+        )
+
+        f.write("#\n")
+
+        f.write(
+            "# index "
+            "frequence "
+            "omega_rad_s "
+            "rayon "
+            "distance_centre_precedent "
+            "phase_initiale_rad\n"
+        )
+
+        for i, circle in enumerate(circles):
+
+            if i == 0:
+                distance = 0.0
+            else:
+                distance = (
+                    circles[i - 1]["radius"]
+                )
+
+            omega = calculate_angular_velocity(
+                circle["frequency"],
+                period
+            )
+
+            phase = circle["phase"]
+
+            f.write(
+                f"{i:5d} "
+                f"{circle['frequency']:10d} "
+                f"{omega:15.8f} "
+                f"{circle['radius']:15.8f} "
+                f"{distance:20.8f} "
+                f"{phase:20.8f}\n"
+            )
+
+
+# ============================================================
+# PROGRAMME PRINCIPAL
+# ============================================================
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Analyse une figure avec la transformée "
+            "de Fourier et la reconstruit avec des cercles."
+        )
+    )
+
+    parser.add_argument(
+        "-f",
+        "--file",
+        required=True,
+        help="Fichier TXT contenant les coordonnées X Y"
+    )
+
+    parser.add_argument(
+        "-n",
+        "--circles",
+        type=int,
+        default=20,
+        help="Nombre de cercles de Fourier"
+    )
+
+    parser.add_argument(
+        "-T",
+        "--period",
+        type=float,
+        default=1.0,
+        help="Durée d'un tour complet en secondes"
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Nom du fichier TXT de sortie"
+    )
+
+    parser.add_argument(
+        "--samples",
+        type=int,
+        default=2048,
+        help="Nombre de points utilisés pour la FFT"
+    )
+
+    parser.add_argument(
+        "--no-animation",
+        action="store_true",
+        help="Ne pas afficher l'animation"
+    )
+
+    args = parser.parse_args()
+
+    # -------------------------
+    # Lecture
+    # -------------------------
+
+    print(
+        f"Lecture de {args.file}..."
+    )
+
+    points = load_points(
+        args.file
+    )
+
+    print(
+        f"{len(points)} points chargés."
+    )
+
+    # -------------------------
+    # Rééchantillonnage
+    # -------------------------
+
+    x, y = resample_curve(
+        points,
+        args.samples
+    )
+
+    # -------------------------
+    # Fourier
+    # -------------------------
+
+    circles = compute_fourier(
+        x,
+        y,
+        args.circles
+    )
+
+    print(
+        f"{len(circles)} cercles calculés."
+    )
+
+    # -------------------------
+    # Fichier de sortie
+    # -------------------------
+
+    if args.output is None:
+
+        input_path = Path(
+            args.file
+        )
+
+        output_file = (
+            input_path.parent
+            / f"{input_path.stem}_fourier.txt"
+        )
+
+    else:
+
+        output_file = Path(
+            args.output
+        )
+
+    save_parameters(
+        circles,
+        output_file,
+        args.period
+    )
+
+    print(
+        f"Fichier créé : {output_file}"
+    )
+
+    # -------------------------
+    # Affichage
+    # -------------------------
+
+    print(
+        "Affichage de la figure originale..."
+    )
+
+    plot_original(
+        x,
+        y
+    )
+
+    print(
+        "Affichage de la reconstruction Fourier..."
+    )
+
+    plot_fourier(
+        circles,
+        args.period
+    )
+
+    print(
+        "Affichage de la comparaison..."
+    )
+
+    plot_comparison(
+        x,
+        y,
+        circles,
+        args.period
+    )
+
+    # -------------------------
+    # Animation
+    # -------------------------
+
+    if not args.no_animation:
+
+        print(
+            "Démarrage de l'animation..."
+        )
+
+        animate_fourier(
+            circles,
+            x,
+            y,
+            args.period
+        )
+
+
+if __name__ == "__main__":
+    main()
+
