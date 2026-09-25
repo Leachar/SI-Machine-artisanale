@@ -1,0 +1,142 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+
+
+# ==========================================
+# 1. DONNÉES DU SYSTÈME (PARAMÈTRES UTILISATEUR)
+# ==========================================
+L = [0.05, 0.02, 0.1]  # Longueurs des barres (m)
+w = [15, 12, 13]  # Vitesses angulaires des barres (rad/s)
+theta0 = [0, 0, 0]  # Angles initiaux (rad)
+
+m_moteur = 0.045  # Masse d'un moteur (kg)
+m_barre = [0.03, 0.03, 0.03]  # Masse de chaque barre (kg)
+
+# Paramètres d'échantillonnage temporel
+t_max = 2.0  # Durée totale de la simulation (en secondes)
+delta_t = 0.01  # Pas de temps Δt choisi par l'utilisateur (s)
+
+t = sp.Symbol('t')
+
+
+# ==========================================
+# 2. FONCTIONS POUR LES MOTEURS
+# ==========================================
+def position_vitesse_moteur(L_sub, w_sub, theta0_sub):
+  x, y = 0, 0
+  for i in range(len(L_sub)):
+    angle = w_sub[i] * t + theta0_sub[i]
+    x += L_sub[i] * sp.cos(angle)
+    y += L_sub[i] * sp.sin(angle)
+  return sp.diff(x, t), sp.diff(y, t)
+
+
+def energie_moteurs_totale(L, w, theta0, m_mot):
+  Ec_tot = 0
+  for k in range(1, len(L) + 1):
+    L_sub, w_sub, theta0_sub = L[: k - 1], w[: k - 1], theta0[: k - 1]
+    if not L_sub:
+      vx, vy = 0, 0
+    else:
+      vx, vy = position_vitesse_moteur(L_sub, w_sub, theta0_sub)
+    Ec_tot += 0.5 * m_mot * (vx**2 + vy**2)
+  return sp.simplify(Ec_tot)
+
+
+# ==========================================
+# 3. FONCTIONS POUR LES BARRES
+# ==========================================
+def energie_barre_details(i, L, w, theta0, m_b):
+  w_cumul = sum(w[:i])
+  J_i = (1 / 12) * m_b[i - 1] * (L[i - 1] ** 2)
+  Ec_rot = 0.5 * J_i * (w_cumul**2)
+
+  x_G, y_G = 0, 0
+  for j in range(i - 1):
+    angle_j = w[j] * t + theta0[j]
+    x_G += L[j] * sp.cos(angle_j)
+    y_G += L[j] * sp.sin(angle_j)
+
+  angle_i = w[i - 1] * t + theta0[i - 1]
+  x_G += 0.5 * L[i - 1] * sp.cos(angle_i)
+  y_G += 0.5 * L[i - 1] * sp.sin(angle_i)
+
+  vx_G = sp.diff(x_G, t)
+  vy_G = sp.diff(y_G, t)
+  Ec_trans = 0.5 * m_b[i - 1] * (vx_G**2 + vy_G**2)
+
+  return sp.simplify(Ec_trans), sp.simplify(Ec_rot)
+
+#===========================================
+# 4. FONCTION POUR LE STYLO 
+#===========================================
+
+def energie_stylo(vx, vy, delta_t):
+  ft= 1.8
+  P=ft*(sp.sqrt(vx**2 + vy**2))
+  E=P*delta_t
+  return E  
+
+vx, vy = position_vitesse_moteur(L, w, theta0)
+force_coulomb = energie_stylo( vx, vy, delta_t)
+
+
+
+# ==========================================
+# 5. ÉCHANTILLONNAGE ET TRACÉ DU GRAPHIQUE
+# ==========================================
+# A. Calcul symbolique initial (fait une seule fois)
+expr_barres = [
+    energie_barre_details(i, L, w, theta0, m_barre)
+    for i in range(1, len(L) + 1)
+]
+expr_moteurs = energie_moteurs_totale(L, w, theta0, m_moteur)
+
+# B. Conversion en fonctions numériques rapides (lambdify)
+func_moteurs = sp.lambdify(t, expr_moteurs, 'numpy')
+func_barres = [
+    (sp.lambdify(t, trans, 'numpy'), sp.lambdify(t, rot, 'numpy'))
+    for trans, rot in expr_barres
+]
+
+# C. Création du tableau de temps de 0 à t_max par pas de delta_t
+temps = np.arange(0, t_max + delta_t, delta_t)
+
+# D. Évaluation vectorielle rapide
+e_moteurs_vals = func_moteurs(temps)
+e_barres_vals = np.zeros_like(temps)
+
+for f_trans, f_rot in func_barres:
+  e_barres_vals += f_trans(temps) + f_rot(temps)
+
+# 1. Calcul symbolique
+vx, vy = position_vitesse_moteur(L, w, theta0)
+expr_stylo = energie_stylo(vx, vy, delta_t)
+
+# 2. Conversion en fonction numérique NumPy (Indispensable !)
+func_stylo = sp.lambdify(t, expr_stylo, 'numpy')
+
+# 3. Évaluation numérique sur tout le tableau de temps
+e_stylo_vals = func_stylo(temps)
+
+# 4. Somme numérique (maintenant e_totale_vals contient uniquement des float)
+e_totale_vals = e_barres_vals + e_moteurs_vals + e_stylo_vals
+
+
+# E. Affichage des valeurs dans la console
+print(f'=== CALCULS EFFECTUÉS (Δt = {delta_t} s, t_max = {t_max} s) ===')
+for instant, val in zip(temps, e_totale_vals):
+  print(f't = {instant:.2f} s  ->  Ec_totale = {val:.6f} J')
+
+# F. Tracé de la courbe
+plt.figure(figsize=(9, 5))
+plt.plot(temps,e_totale_vals,label='Énergie cinétique globale',color='b',linewidth=1.5,)
+plt.title(f"Évolution de l'énergie cinétique au cours du temps (Δt = {delta_t} s)")
+plt.xlabel('Temps (s)')
+plt.ylabel('Énergie cinétique (J)')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
