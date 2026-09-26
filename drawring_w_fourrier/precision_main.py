@@ -710,13 +710,13 @@ def _get_reference_matrices(mode):
 #phi=[0.0,np.pi/2,np.pi/6]
 #Appel direct avec affectation sur les 4 variables
 x0,y0,moteurs, barres, phi, teta = analyser_fourier(
-    filename="cadre.txt", 
+    filename="engrenagestest.txt", 
     n_circles=20, 
     exporter_txt=False,   # Crée le TXT
     animer=True         # Mettre False si vous ne voulez pas afficher la fenêtre graphique
 )
 
 
-selection_mode=0
+selection_mode=3
 precision=compute_precision(x0,y0,barres,teta,phi,selection_mode,periode=2.0, display_plot=True)
 plt.show()
