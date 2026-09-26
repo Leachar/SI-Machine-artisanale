@@ -6,15 +6,19 @@ import sympy as sp
 # ==========================================
 # 1. DONNÉES DU SYSTÈME (PARAMÈTRES UTILISATEUR)
 # ==========================================
-L = [0.05, 0.02, 0.1]  # Longueurs des barres (m)
-w = [15, 12, 13]  # Vitesses angulaires des barres (rad/s)
-theta0 = [0, 0, 0]  # Angles initiaux (rad)
+L = [0.05, 0.02, 0.1, 0.03]  # Longueurs des barres (m)
+w = [15, 12, 13, 5]  # Vitesses angulaires des barres (rad/s)
+theta0 = [0, 0, 0, 0]  # Angles initiaux (rad)
 
 m_moteur = 0.045  # Masse d'un moteur (kg)
-m_barre = [0.03, 0.03, 0.03]  # Masse de chaque barre (kg)
+def calculer_masses_barres(L, masse_lineique=0.05):
+  """Calcule la masse de chaque barre en fonction de sa longueur L. masse_lineique : masse par mètre (kg/m), par défaut 0.05 kg/m (50 g/m)."""
+  # en fonction de l'énoncé, avec une section circulaire de 4mm
+  return [longueur * masse_lineique for longueur in L]
+m_barre = calculer_masses_barres(L, masse_lineique=0.05)  # Masse de chaque barre (kg)
 
 # Paramètres d'échantillonnage temporel
-t_max = 2.0  # Durée totale de la simulation (en secondes)
+t_max = 0.1  # Durée totale de la simulation (en secondes), fixée par l'énoncé 
 delta_t = 0.01  # Pas de temps Δt choisi par l'utilisateur (s)
 
 t = sp.Symbol('t')
@@ -123,7 +127,17 @@ e_stylo_vals = func_stylo(temps)
 # 4. Somme numérique (maintenant e_totale_vals contient uniquement des float)
 e_totale_vals = e_barres_vals + e_moteurs_vals + e_stylo_vals
 
+def calculer_energie_globale_integree(temps, e_totale_vals):
+  """Calcule l'intégrale temporelle de la puissance/énergie instantanée pour obtenir l'énergie cumulée totale (en Joules) sur toute la durée."""
+  # Intégration numérique par la méthode des trapèzes : ∫ E(t) dt
+  energie_cumulee = np.trapezoid(e_totale_vals, temps)
+  return float(energie_cumulee)
 
+energie_globale_totale = np.trapezoid(e_totale_vals, temps)
+
+print('==========================================')
+print(f'ÉNERGIE GLOBALE INTÉGRÉE (Travail total) : {energie_globale_totale:.6f} J')
+print('==========================================')
 # E. Affichage des valeurs dans la console
 print(f'=== CALCULS EFFECTUÉS (Δt = {delta_t} s, t_max = {t_max} s) ===')
 for instant, val in zip(temps, e_totale_vals):
@@ -131,12 +145,17 @@ for instant, val in zip(temps, e_totale_vals):
 
 # F. Tracé de la courbe
 plt.figure(figsize=(9, 5))
-plt.plot(temps,e_totale_vals,label='Énergie cinétique globale',color='b',linewidth=1.5,)
-plt.title(f"Évolution de l'énergie cinétique au cours du temps (Δt = {delta_t} s)")
+plt.plot(temps,e_totale_vals,label='Energie instantanée globale',color='b',linewidth=1.5,)
+plt.title(f"Évolution de l'énergie instantanée au cours du temps (Δt = {delta_t} s)")
 plt.xlabel('Temps (s)')
-plt.ylabel('Énergie cinétique (J)')
+plt.ylabel('Energie instantanée (J/Δt)')
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
 
+# on a un programme qui prend en paramètres tout au début : une liste de longueurs L à rentrer en mètres, une liste de vitesses angulaires en rad.s-1, et une liste d'angles initiaux en rad
+# le programme calcule tout seul la masse de chaque barre avec la section et la masse volumique, avec une fonction qui prend en paramètres la liste des longueurs de barres
+# j'ai mis t_max = 0.1sec pour avoir le même que l'énoncé
+# on obtient un graphique de l'énergie instantanée en fonction du temps, attention c'est pas vraiment en joules
+# il y a la fonction intégrale pour calculer l'énergie totale lors de toute la durée du tracé
