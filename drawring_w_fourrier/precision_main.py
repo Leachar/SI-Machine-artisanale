@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+from lebonaimport import analyser_fourier
 
-def compute_precision(x0, y0, L, omega, phi, mode, display_plot=False):
+def compute_precision(x0, y0, L, omega, phi, mode,periode=2.0, display_plot=False):
     """
     Calcule la précision d'un dessin généré par un système mécanique
     (superposition de barres rotatives) en le comparant à une forme
@@ -43,9 +44,9 @@ def compute_precision(x0, y0, L, omega, phi, mode, display_plot=False):
     L     = np.atleast_1d(L)
     omega = np.atleast_1d(omega)
     phi   = np.atleast_1d(phi)
-    t = np.linspace(0, 1, 10000)
-    traj_x = np.full_like(t, x0, dtype=float)
-    traj_y = np.full_like(t, y0, dtype=float)
+    t = np.linspace(0, periode, 10000)
+    traj_x = np.zeros_like(t, dtype=float)
+    traj_y = np.zeros_like(t, dtype=float)
     for j in range(len(L)):
         traj_x += L[j] * np.cos(omega[j] * t + phi[j])
         traj_y += L[j] * np.sin(omega[j] * t + phi[j])
@@ -703,11 +704,19 @@ def _get_reference_matrices(mode):
 
 
 #Main 
-x0=-0.02
-y0=0
-L = [0.01,0.02,0.05]
-omega= [0.2,3,0.5]
-phi=[0.0,np.pi/2,np.pi/6]
-selection_mode=0
-precison=compute_precision(x0,y0,L,omega,phi,selection_mode, display_plot=True)
+
+#L = [0.01,0.02,0.05]
+#omega= [0.2,3,0.5]
+#phi=[0.0,np.pi/2,np.pi/6]
+#Appel direct avec affectation sur les 4 variables
+x0,y0,moteurs, barres, phi, teta = analyser_fourier(
+    filename="engrenagestest.txt", 
+    n_circles=20, 
+    exporter_txt=False,   # Crée le TXT
+    animer=True         # Mettre False si vous ne voulez pas afficher la fenêtre graphique
+)
+
+
+selection_mode=3
+precision=compute_precision(x0,y0,barres,teta,phi,selection_mode,periode=2.0, display_plot=True)
 plt.show()
