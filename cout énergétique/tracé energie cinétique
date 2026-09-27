@@ -27,12 +27,15 @@ t = sp.Symbol('t')
 # ==========================================
 # 2. FONCTIONS POUR LES MOTEURS
 # ==========================================
+
 def position_vitesse_moteur(L_sub, w_sub, theta0_sub):
   x, y = 0, 0
+  angle_cumule = 0
   for i in range(len(L_sub)):
-    angle = w_sub[i] * t + theta0_sub[i]
-    x += L_sub[i] * sp.cos(angle)
-    y += L_sub[i] * sp.sin(angle)
+    # On additionne l'angle de chaque articulation précédente
+    angle_cumule += w_sub[i] * t + theta0_sub[i]
+    x += L_sub[i] * sp.cos(angle_cumule)
+    y += L_sub[i] * sp.sin(angle_cumule)
   return sp.diff(x, t), sp.diff(y, t)
 
 
@@ -51,21 +54,29 @@ def energie_moteurs_totale(L, w, theta0, m_mot):
 # ==========================================
 # 3. FONCTIONS POUR LES BARRES
 # ==========================================
+
 def energie_barre_details(i, L, w, theta0, m_b):
+  # Rotation propre globale
   w_cumul = sum(w[:i])
   J_i = (1 / 12) * m_b[i - 1] * (L[i - 1] ** 2)
   Ec_rot = 0.5 * J_i * (w_cumul**2)
 
+  # Position du centre de masse (x_G, y_G) avec angles cumulés
   x_G, y_G = 0, 0
+  angle_cumule = 0
+
+  # Contribution des barres précédentes
   for j in range(i - 1):
-    angle_j = w[j] * t + theta0[j]
-    x_G += L[j] * sp.cos(angle_j)
-    y_G += L[j] * sp.sin(angle_j)
+    angle_cumule += w[j] * t + theta0[j]
+    x_G += L[j] * sp.cos(angle_cumule)
+    y_G += L[j] * sp.sin(angle_cumule)
 
-  angle_i = w[i - 1] * t + theta0[i - 1]
-  x_G += 0.5 * L[i - 1] * sp.cos(angle_i)
-  y_G += 0.5 * L[i - 1] * sp.sin(angle_i)
+  # Contribution du demi-tronçon de la barre i
+  angle_cumule += w[i - 1] * t + theta0[i - 1]
+  x_G += 0.5 * L[i - 1] * sp.cos(angle_cumule)
+  y_G += 0.5 * L[i - 1] * sp.sin(angle_cumule)
 
+  # Vitesse du centre de masse
   vx_G = sp.diff(x_G, t)
   vy_G = sp.diff(y_G, t)
   Ec_trans = 0.5 * m_b[i - 1] * (vx_G**2 + vy_G**2)
@@ -76,79 +87,81 @@ def energie_barre_details(i, L, w, theta0, m_b):
 # 4. FONCTION POUR LE STYLO 
 #===========================================
 
-def energie_stylo(vx, vy, delta_t):
-  ft= 1.8
-  P=ft*(sp.sqrt(vx**2 + vy**2))
-  E=P*delta_t
-  return E  
+def puissance_stylo(vx, vy, ft=1.8):
+  """Exprime la puissance instantanée dissipée par frottement (en Watts)."""
+  return ft * sp.sqrt(vx**2 + vy**2)
 
-vx, vy = position_vitesse_moteur(L, w, theta0)
-force_coulomb = energie_stylo( vx, vy, delta_t)
+def bilan_energetique_trace_complet(e_cinetique_totale, p_stylo_vals, temps):
+  """Calcule le bilan énergétique global pour tout le tracé (mise en vitesse + frottement)."""
+  # 1. Énergie cinétique finale à atteindre (mise en mouvement depuis l'arrêt)
+  E_cinetique_depart = e_cinetique_totale[-1]
 
+  # 2. Travail de frottement du stylo intégré sur toute la durée du tracé
+  W_frottement_total = np.trapezoid(p_stylo_vals, temps)
+
+  # 3. Énergie globale consommée pour réaliser tout le tracé
+  E_globale_total = E_cinetique_depart + W_frottement_total
+
+  return E_cinetique_depart, W_frottement_total, E_globale_total
 
 
 # ==========================================
 # 5. ÉCHANTILLONNAGE ET TRACÉ DU GRAPHIQUE
 # ==========================================
-# A. Calcul symbolique initial (fait une seule fois)
-expr_barres = [
-    energie_barre_details(i, L, w, theta0, m_barre)
-    for i in range(1, len(L) + 1)
-]
+
+
+expr_barres = [energie_barre_details(i, L, w, theta0, m_barre)for i in range(1, len(L) + 1)]
 expr_moteurs = energie_moteurs_totale(L, w, theta0, m_moteur)
 
-# B. Conversion en fonctions numériques rapides (lambdify)
-func_moteurs = sp.lambdify(t, expr_moteurs, 'numpy')
-func_barres = [
-    (sp.lambdify(t, trans, 'numpy'), sp.lambdify(t, rot, 'numpy'))
-    for trans, rot in expr_barres
-]
+# Vitesse du stylo (bout de la dernière barre)
+vx_stylo, vy_stylo = position_vitesse_moteur(L, w, theta0)
+expr_p_stylo = puissance_stylo(vx_stylo, vy_stylo, ft=1.8)
 
-# C. Création du tableau de temps de 0 à t_max par pas de delta_t
+# B. Conversions Lambdify
+func_moteurs = sp.lambdify(t, expr_moteurs, 'numpy')
+func_barres = [(sp.lambdify(t, trans, 'numpy'), sp.lambdify(t, rot, 'numpy'))for trans, rot in expr_barres]
+func_p_stylo = sp.lambdify(t, expr_p_stylo, 'numpy')
+
+# C. Tableau de temps
 temps = np.arange(0, t_max + delta_t, delta_t)
 
-# D. Évaluation vectorielle rapide
+# D. Évaluation numérique
 e_moteurs_vals = func_moteurs(temps)
 e_barres_vals = np.zeros_like(temps)
 
 for f_trans, f_rot in func_barres:
   e_barres_vals += f_trans(temps) + f_rot(temps)
 
-# 1. Calcul symbolique
-vx, vy = position_vitesse_moteur(L, w, theta0)
-expr_stylo = energie_stylo(vx, vy, delta_t)
+# Énergie cinétique instantanée globale (J)
+e_cinetique_totale = e_barres_vals + e_moteurs_vals
 
-# 2. Conversion en fonction numérique NumPy (Indispensable !)
-func_stylo = sp.lambdify(t, expr_stylo, 'numpy')
+# Puissance instantanée dissipée par le stylo (W)
+p_stylo_vals = func_p_stylo(temps)
 
-# 3. Évaluation numérique sur tout le tableau de temps
-e_stylo_vals = func_stylo(temps)
+# --- CALCUL DE L'ÉNERGIE TOTALE CONSOMMÉE SUR t_max ---
+# 1. Travail dissipé par le stylo = Intégrale de P_stylo(t) dt
+travail_stylo = np.trapezoid(p_stylo_vals, temps)
 
-# 4. Somme numérique (maintenant e_totale_vals contient uniquement des float)
-e_totale_vals = e_barres_vals + e_moteurs_vals + e_stylo_vals
+# --- CALCUL DU BILAN ÉNERGÉTIQUE GLOBAL DU TRACÉ ---
+E_cin, W_frot_total, E_globale = bilan_energetique_trace_complet(
+    e_cinetique_totale, p_stylo_vals, temps
+)
 
-def calculer_energie_globale_integree(temps, e_totale_vals):
-  """Calcule l'intégrale temporelle de la puissance/énergie instantanée pour obtenir l'énergie cumulée totale (en Joules) sur toute la durée."""
-  # Intégration numérique par la méthode des trapèzes : ∫ E(t) dt
-  energie_cumulee = np.trapezoid(e_totale_vals, temps)
-  return float(energie_cumulee)
+print('==================================================')
+print(f'BILAN ÉNERGÉTIQUE GLOBAL DU TRACÉ COMPLET ({t_max} s) :')
+print(f' - Énergie cinétique de mise en mouvement (Ec) : {E_cin:.6f} J')
+print(f' - Travail dissipé par le frottement (W_stylo) : {W_frot_total:.6f} J')
+print(' ------------------------------------------------')
+print(f' = ÉNERGIE TOTALE CONSOMMÉE SUR LE TRACÉ        : {E_globale:.6f} J')
+print('==================================================\n')
 
-energie_globale_totale = np.trapezoid(e_totale_vals, temps)
 
-print('==========================================')
-print(f'ÉNERGIE GLOBALE INTÉGRÉE (Travail total) : {energie_globale_totale:.6f} J')
-print('==========================================')
-# E. Affichage des valeurs dans la console
-print(f'=== CALCULS EFFECTUÉS (Δt = {delta_t} s, t_max = {t_max} s) ===')
-for instant, val in zip(temps, e_totale_vals):
-  print(f't = {instant:.2f} s  ->  Ec_totale = {val:.6f} J')
-
-# F. Tracé de la courbe
+# F. Tracé de l'Énergie Cinétique Globale
 plt.figure(figsize=(9, 5))
-plt.plot(temps,e_totale_vals,label='Energie instantanée globale',color='b',linewidth=1.5,)
-plt.title(f"Évolution de l'énergie instantanée au cours du temps (Δt = {delta_t} s)")
+plt.plot(temps,e_cinetique_totale,label = r'Énergie cinétique instantanée (E_c(t))',color='b',linewidth=1.5,)
+plt.title(f"Évolution de l'énergie cinétique au cours du temps (Δt = {delta_t} s)")
 plt.xlabel('Temps (s)')
-plt.ylabel('Energie instantanée (J/Δt)')
+plt.ylabel('Énergie cinétique (J)')
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
@@ -159,3 +172,18 @@ plt.show()
 # j'ai mis t_max = 0.1sec pour avoir le même que l'énoncé
 # on obtient un graphique de l'énergie instantanée en fonction du temps, attention c'est pas vraiment en joules
 # il y a la fonction intégrale pour calculer l'énergie totale lors de toute la durée du tracé
+
+"""
+===============================================================================
+RÉSUMÉ DES CORRECTIONS DU SCRIPT
+===============================================================================
+- Entrées : Listes L (m), w (rad/s), theta0 (rad) définies au début.
+- Masse dynamique : Fonction `calculer_masses_barres(L)` calculant la masse
+  de chaque barre via la masse linéique et la longueur (évite les erreurs d'indice).
+- Cinématique : Intégration des angles cumulés (∑ θ) pour calculer la position 
+  et la vitesse exactes de chaque barre et du stylo.
+- Bilan énergétique : Séparation de l'énergie cinétique Ec(t) [J] et de la 
+  puissance de frottement P(t) [W]. L'énergie globale du tracé est obtenue par :
+  E_totale = Ec(t_max) + ∫ P_stylo(t) dt.
+===============================================================================
+"""
