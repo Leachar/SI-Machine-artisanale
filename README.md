@@ -9,3 +9,5 @@ Fourier drawing :
 https://www.myfourierepicycles.com/
 
 program that traces: https://editor.p5js.org/codingtrain/sketches/ldBlISrsQ
+
+Pour le tracé de l'énergie : toutes les indications sont en bas du programme
