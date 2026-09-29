@@ -23,7 +23,7 @@ x0, y0, moteurs, barres, phi, teta = analyser_fourier(
 choix = input("Quel graphique voulez-vous afficher ? (1: Précision, 2: Coût, 3: Les deux) : ").strip()
 
 if choix in ["1", "3"]:
-    precision = compute_precision(x0, y0, barres, teta, phi, selection, periode=2.0, display_plot=True)
+    precision = compute_precision(x0, y0, barres, teta, phi, selection, periode=0.1, display_plot=True)
     plt.show()
 
 if choix in ["2", "3"]:

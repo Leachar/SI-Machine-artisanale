@@ -29,14 +29,19 @@ t = sp.Symbol('t')
 # ==========================================
 
 def position_vitesse_moteur(L_sub, w_sub, theta0_sub):
-  x, y = 0, 0
-  angle_cumule = 0
-  for i in range(len(L_sub)):
-    # On additionne l'angle de chaque articulation précédente
-    angle_cumule += w_sub[i] * t + theta0_sub[i]
-    x += L_sub[i] * sp.cos(angle_cumule)
-    y += L_sub[i] * sp.sin(angle_cumule)
-  return sp.diff(x, t), sp.diff(y, t)
+    x, y = 0, 0
+    w_cumule = 0
+    for i in range(len(L_sub)):
+        w_cumule += w_sub[i]
+        angle_barre = w_cumule * t + theta0_sub[i]
+
+        x += L_sub[i] * sp.cos(angle_barre)
+        y += L_sub[i] * sp.sin(angle_barre)
+
+    vx = sp.diff(x, t)
+    vy = sp.diff(y, t)
+
+    return x, y, vx, vy
 
 
 def energie_moteurs_totale(L, w, theta0, m_mot):
