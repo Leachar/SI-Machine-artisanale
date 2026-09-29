@@ -192,3 +192,7 @@ RÉSUMÉ DES CORRECTIONS DU SCRIPT
   E_totale = Ec(t_max) + ∫ P_stylo(t) dt.
 ===============================================================================
 """
+
+
+
+#ca marche
