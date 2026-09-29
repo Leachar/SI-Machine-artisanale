@@ -98,17 +98,16 @@ def puissance_stylo(vx, vy, ft=1.8):
   return ft * sp.sqrt(vx**2 + vy**2)
 
 def bilan_energetique_trace_complet(e_cinetique_totale, p_stylo_vals, temps):
-  """Calcule le bilan énergétique global pour tout le tracé (mise en vitesse + frottement)."""
-  # 1. Énergie cinétique finale à atteindre (mise en mouvement depuis l'arrêt)
-  E_cinetique_depart = e_cinetique_totale[-1]
+    # 1. Énergie cinétique moyenne maintenue par le mécanisme (J)
+    E_c_moyenne = np.mean(e_cinetique_totale)
 
-  # 2. Travail de frottement du stylo intégré sur toute la durée du tracé
-  W_frottement_total = np.trapezoid(p_stylo_vals, temps)
+    # 2. Travail total dissipé par le frottement du stylo (J)
+    W_frottement_total = np.trapezoid(p_stylo_vals, temps)
 
-  # 3. Énergie globale consommée pour réaliser tout le tracé
-  E_globale_total = E_cinetique_depart + W_frottement_total
+    # 3. Énergie globale consommée sur le tracé (J)
+    E_globale_total = E_c_moyenne + W_frottement_total
 
-  return E_cinetique_depart, W_frottement_total, E_globale_total
+    return E_c_moyenne, W_frottement_total, E_globale_total
 
 
 # ==========================================
