@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sympy as sp
 from matplotlib.patches import Rectangle
-from trace_energie_cinetique import *
 from lebonaimport import analyser_fourier
+from Energie_totale_finale import *
 
 
 n_moteur_max = int(input("Choississez le nombre maximal de moteurs "))
@@ -23,7 +23,7 @@ for i in range(len(n_moteur)):
     )
     m_barre = calculer_masses_barres(barres, masse_lineique=0.05)
     
-    energie = trace_tps_energie(barres,teta,phi,m_barre)
+    energie = trace_tps_energie(barres, teta, phi)
 
 
     energytot.append(energie)
