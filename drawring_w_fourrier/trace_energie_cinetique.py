@@ -41,7 +41,7 @@ def position_vitesse_moteur(L_sub, w_sub, theta0_sub):
     vx = sp.diff(x, t)
     vy = sp.diff(y, t)
 
-    return x, y, vx, vy
+    return vx, vy
 
 
 def energie_moteurs_totale(L, w, theta0, m_mot):
@@ -61,33 +61,34 @@ def energie_moteurs_totale(L, w, theta0, m_mot):
 # ==========================================
 
 def energie_barre_details(i, L, w, theta0, m_b):
-  # Rotation propre globale
-  w_cumul = sum(w[:i])
-  J_i = (1 / 12) * m_b[i - 1] * (L[i - 1] ** 2)
-  Ec_rot = 0.5 * J_i * (w_cumul**2)
+    # 1. Rotation propre globale
+    w_cumul = sum(w[:i])
+    J_i = (1 / 12) * m_b[i - 1] * (L[i - 1] ** 2)
+    Ec_rot = 0.5 * J_i * (w_cumul**2)
 
-  # Position du centre de masse (x_G, y_G) avec angles cumulés
-  x_G, y_G = 0, 0
-  angle_cumule = 0
+    # 2. Position du centre de masse (x_G, y_G)
+    x_G, y_G = 0, 0
+    w_cumule = 0
 
-  # Contribution des barres précédentes
-  for j in range(i - 1):
-    angle_cumule += w[j] * t + theta0[j]
-    x_G += L[j] * sp.cos(angle_cumule)
-    y_G += L[j] * sp.sin(angle_cumule)
+    # Contribution des barres précédentes entières
+    for j in range(i - 1):
+        w_cumule += w[j]
+        angle_barre = w_cumule * t + theta0[j]
+        x_G += L[j] * sp.cos(angle_barre)
+        y_G += L[j] * sp.sin(angle_barre)
 
-  # Contribution du demi-tronçon de la barre i
-  angle_cumule += w[i - 1] * t + theta0[i - 1]
-  x_G += 0.5 * L[i - 1] * sp.cos(angle_cumule)
-  y_G += 0.5 * L[i - 1] * sp.sin(angle_cumule)
+    # Contribution du demi-tronçon de la barre i
+    w_cumule += w[i - 1]
+    angle_barre_i = w_cumule * t + theta0[i - 1]
+    x_G += 0.5 * L[i - 1] * sp.cos(angle_barre_i)
+    y_G += 0.5 * L[i - 1] * sp.sin(angle_barre_i)
 
-  # Vitesse du centre de masse
-  vx_G = sp.diff(x_G, t)
-  vy_G = sp.diff(y_G, t)
-  Ec_trans = 0.5 * m_b[i - 1] * (vx_G**2 + vy_G**2)
+    # 3. Vitesse du centre de masse et énergie de translation
+    vx_G = sp.diff(x_G, t)
+    vy_G = sp.diff(y_G, t)
+    Ec_trans = 0.5 * m_b[i - 1] * (vx_G**2 + vy_G**2)
 
-  return sp.simplify(Ec_trans), sp.simplify(Ec_rot)
-
+    return sp.simplify(Ec_trans), sp.simplify(Ec_rot)
 #===========================================
 # 4. FONCTION POUR LE STYLO 
 #===========================================
@@ -97,17 +98,16 @@ def puissance_stylo(vx, vy, ft=1.8):
   return ft * sp.sqrt(vx**2 + vy**2)
 
 def bilan_energetique_trace_complet(e_cinetique_totale, p_stylo_vals, temps):
-  """Calcule le bilan énergétique global pour tout le tracé (mise en vitesse + frottement)."""
-  # 1. Énergie cinétique finale à atteindre (mise en mouvement depuis l'arrêt)
-  E_cinetique_depart = e_cinetique_totale[-1]
+    # 1. Énergie cinétique moyenne maintenue par le mécanisme (J)
+    E_c_moyenne = np.mean(e_cinetique_totale)
 
-  # 2. Travail de frottement du stylo intégré sur toute la durée du tracé
-  W_frottement_total = np.trapezoid(p_stylo_vals, temps)
+    # 2. Travail total dissipé par le frottement du stylo (J)
+    W_frottement_total = np.trapezoid(p_stylo_vals, temps)
 
-  # 3. Énergie globale consommée pour réaliser tout le tracé
-  E_globale_total = E_cinetique_depart + W_frottement_total
+    # 3. Énergie globale consommée sur le tracé (J)
+    E_globale_total = E_c_moyenne + W_frottement_total
 
-  return E_cinetique_depart, W_frottement_total, E_globale_total
+    return E_c_moyenne, W_frottement_total, E_globale_total
 
 
 # ==========================================
