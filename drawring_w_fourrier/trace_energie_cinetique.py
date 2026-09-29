@@ -163,6 +163,7 @@ def trace_tps_energie(L,w,theta0,m_barre):
 
 
   # F. Tracé de l'Énergie Cinétique Globale
+  """ 
   plt.figure(figsize=(9, 5))
   plt.plot(temps,e_cinetique_totale,label = r'Énergie cinétique instantanée (E_c(t))',color='b',linewidth=1.5,)
   plt.title(f"Évolution de l'énergie cinétique au cours du temps (Δt = {delta_t} s)")
@@ -172,6 +173,7 @@ def trace_tps_energie(L,w,theta0,m_barre):
   plt.legend()
   plt.tight_layout()
   plt.show()
+   """
   return E_globale
 
 #ca marche
