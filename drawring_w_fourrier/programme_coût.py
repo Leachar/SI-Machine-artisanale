@@ -9,7 +9,7 @@ def tracer_cout_moteur(moteurs,barres):
     liste_moteurs = list(range(1, moteurs + 1))
     cout_total=[]
     for i in range(len(liste_moteurs)) :
-        cout=Cout(sum(barres[:i+1]),4,liste_moteurs[i])
+        cout=Cout(sum(barres[:i +1]),4,liste_moteurs[i])
         cout_total.append(cout)
     plt.plot(liste_moteurs,cout_total)
     plt.xlabel("Nombre de moteurs")
