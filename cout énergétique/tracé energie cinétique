@@ -41,7 +41,7 @@ def position_vitesse_moteur(L_sub, w_sub, theta0_sub):
     vx = sp.diff(x, t)
     vy = sp.diff(y, t)
 
-    return x, y, vx, vy
+    return vx, vy
 
 
 def energie_moteurs_totale(L, w, theta0, m_mot):
