@@ -6,9 +6,11 @@ import sympy as sp
 # ==========================================
 # 1. DONNÉES DU SYSTÈME (PARAMÈTRES UTILISATEUR)
 # ==========================================
-L = [0.05, 0.02, 0.1, 0.03]  # Longueurs des barres (m)
-w = [15, 12, 13, 5]  # Vitesses angulaires des barres (rad/s)
-theta0 = [0, 0, 0, 0]  # Angles initiaux (rad)
+L = [0.05, 0.02, 0.1, 0.03, 0.1]  # Longueurs des barres (m)
+w = [15, 12, 13, 5, 8]  # Vitesses angulaires des barres (rad/s)
+theta0 = [0, 0, 0, 0, 0]  # Angles initiaux (rad)
+
+Nb_moteurs = len(L)  # Nombre de moteurs/barres
 
 m_moteur = 0.045  # Masse d'un moteur (kg)
 def calculer_masses_barres(L, masse_lineique=0.05):
@@ -115,67 +117,90 @@ def bilan_energetique_trace_complet(e_cinetique_totale, p_stylo_vals, temps):
 # ==========================================
 
 
-def trace_tps_energie(L,w,theta0,m_barre):
-  expr_barres = [energie_barre_details(i, L, w, theta0, m_barre)for i in range(1, len(L) + 1)]
-  expr_moteurs = energie_moteurs_totale(L, w, theta0, m_moteur)
+def trace_tps_energie(L, w, theta0, m_barre):
+    expr_barres = [
+        energie_barre_details(i, L, w, theta0, m_barre)
+        for i in range(1, len(L) + 1)
+    ]
+    expr_moteurs = energie_moteurs_totale(L, w, theta0, m_moteur)
 
-  # Vitesse du stylo (bout de la dernière barre)
-  vx_stylo, vy_stylo = position_vitesse_moteur(L, w, theta0)
-  expr_p_stylo = puissance_stylo(vx_stylo, vy_stylo, ft=1.8)
+    # Vitesse du stylo (bout de la dernière barre)
+    vx_stylo, vy_stylo = position_vitesse_moteur(L, w, theta0)
+    expr_p_stylo = puissance_stylo(vx_stylo, vy_stylo, ft=1.8)
 
-  # B. Conversions Lambdify
-  func_moteurs = sp.lambdify(t, expr_moteurs, 'numpy')
-  func_barres = [(sp.lambdify(t, trans, 'numpy'), sp.lambdify(t, rot, 'numpy'))for trans, rot in expr_barres]
-  func_p_stylo = sp.lambdify(t, expr_p_stylo, 'numpy')
+    # B. Conversions Lambdify
+    func_moteurs = sp.lambdify(t, expr_moteurs, "numpy")
+    func_barres = [
+        (sp.lambdify(t, trans, "numpy"), sp.lambdify(t, rot, "numpy"))
+        for trans, rot in expr_barres
+    ]
+    func_p_stylo = sp.lambdify(t, expr_p_stylo, "numpy")
 
-  # C. Tableau de temps
-  temps = np.arange(0, t_max + delta_t, delta_t)
+    # C. Tableau de temps
+    temps = np.arange(0, t_max + delta_t, delta_t)
 
-  # D. Évaluation numérique
-  e_moteurs_vals = func_moteurs(temps)
-  e_barres_vals = np.zeros_like(temps)
+    # D. Évaluation numérique
+    e_moteurs_vals = func_moteurs(temps)
+    e_barres_vals = np.zeros_like(temps)
 
-  for f_trans, f_rot in func_barres:
-    e_barres_vals += f_trans(temps) + f_rot(temps)
+    for f_trans, f_rot in func_barres:
+        e_barres_vals += f_trans(temps) + f_rot(temps)
 
-  # Énergie cinétique instantanée globale (J)
-  e_cinetique_totale = e_barres_vals + e_moteurs_vals
+    # Énergie cinétique instantanée globale (J)
+    e_cinetique_totale = e_barres_vals + e_moteurs_vals
 
-  # Puissance instantanée dissipée par le stylo (W)
-  p_stylo_vals = func_p_stylo(temps)
+    # SÉCURITÉ 1 : remplace les éventuels NaN/Inf (ex: divisions par zéro)
+    e_cinetique_totale = np.nan_to_num(e_cinetique_totale, nan=0.0)
 
-  # --- CALCUL DE L'ÉNERGIE TOTALE CONSOMMÉE SUR t_max ---
-  # 1. Travail dissipé par le stylo = Intégrale de P_stylo(t) dt
-  travail_stylo = np.trapezoid(p_stylo_vals, temps)
+    # Puissance instantanée dissipée par le stylo (W)
+    p_stylo_vals = func_p_stylo(temps)
 
-  # --- CALCUL DU BILAN ÉNERGÉTIQUE GLOBAL DU TRACÉ ---
-  E_cin, W_frot_total, E_globale = bilan_energetique_trace_complet(
-      e_cinetique_totale, p_stylo_vals, temps
-  )
+    # SÉCURITÉ 2 : si p_stylo_vals est un scalaire/constante, conversion en tableau
+    if np.isscalar(p_stylo_vals) or np.ndim(p_stylo_vals) == 0:
+        p_stylo_vals = np.full_like(temps, p_stylo_vals, dtype=float)
 
-  print('==================================================')
-  print(f'BILAN ÉNERGÉTIQUE GLOBAL DU TRACÉ COMPLET ({t_max} s) :')
-  print(f' - Énergie cinétique de mise en mouvement (Ec) : {E_cin:.6f} J')
-  print(f' - Travail dissipé par le frottement (W_stylo) : {W_frot_total:.6f} J')
-  print(' ------------------------------------------------')
-  print(f' = ÉNERGIE TOTALE CONSOMMÉE SUR LE TRACÉ        : {E_globale:.6f} J')
-  print('==================================================\n')
+    # SÉCURITÉ 3 : remplace les éventuels NaN/Inf pour la puissance du stylo
+    p_stylo_vals = np.nan_to_num(p_stylo_vals, nan=0.0)
 
+    # --- CALCUL DU BILAN ÉNERGÉTIQUE GLOBAL DU TRACÉ ---
+    E_cin_moy, W_frot_total, E_globale = bilan_energetique_trace_complet(
+        e_cinetique_totale, p_stylo_vals, temps
+    )
 
-  # F. Tracé de l'Énergie Cinétique Globale
-  """ 
-  plt.figure(figsize=(9, 5))
-  plt.plot(temps,e_cinetique_totale,label = r'Énergie cinétique instantanée (E_c(t))',color='b',linewidth=1.5,)
-  plt.title(f"Évolution de l'énergie cinétique au cours du temps (Δt = {delta_t} s)")
-  plt.xlabel('Temps (s)')
-  plt.ylabel('Énergie cinétique (J)')
-  plt.grid(True)
-  plt.legend()
-  plt.tight_layout()
-  plt.show()
-   """
-  return E_globale
+    print("==================================================")
+    print(f"BILAN ÉNERGÉTIQUE GLOBAL DU TRACÉ COMPLET ({t_max} s) :")
+    print(
+        f" - Énergie cinétique moyenne (Ec_moy)           : {E_cin_moy:.6f} J"
+    )
+    print(
+        f" - Travail dissipé par le frottement (W_stylo)  : {W_frot_total:.6f} J"
+    )
+    print(" ------------------------------------------------")
+    print(
+        f" = ÉNERGIE TOTALE CONSOMMÉE SUR LE TRACÉ        : {E_globale:.6f} J"
+    )
+    print("==================================================\n")
 
+    # F. Tracé de l'Énergie Cinétique Globale
+    plt.figure(figsize=(9, 5))
+    plt.plot(
+        temps,
+        e_cinetique_totale,
+        label=r"Énergie cinétique instantanée (E_c(t))",
+        color="b",
+        linewidth=1.5,
+    )
+    plt.title(
+        f"Évolution de l'énergie cinétique au cours du temps (Δt = {delta_t} s)"
+    )
+    plt.xlabel("Temps (s)")
+    plt.ylabel("Énergie cinétique (J)")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    return E_globale
 #ca marche
 
 # on a un programme qui prend en paramètres tout au début : une liste de longueurs L à rentrer en mètres, une liste de vitesses angulaires en rad.s-1, et une liste d'angles initiaux en rad
