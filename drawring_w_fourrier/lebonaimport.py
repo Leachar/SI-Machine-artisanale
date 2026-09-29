@@ -149,7 +149,7 @@ def tracer_animation(circles, original_x, original_y, period, title=""):
 
         return circle_lines + center_points + [trace, tip]
 
-    anim = FuncAnimation(fig, update, frames=frames, interval=20, blit=True, repeat=True)
+    anim = FuncAnimation(fig, update, frames=frames, interval=0.025, blit=True, repeat=True)
     plt.legend(loc="upper right")
     plt.show()
 
@@ -158,7 +158,7 @@ def tracer_animation(circles, original_x, original_y, period, title=""):
 # 4. FONCTION PRINCIPALE RENVOYANT LES DONNÉES
 # ============================================================
 
-def analyser_fourier(filename="lion.txt", n_circles=40, period=2.0, n_samples=1024, invert_y=False, exporter_txt=True, animer=True):
+def analyser_fourier(filename="lion.txt", n_circles=40, period=0.1, n_samples=1024, invert_y=False, exporter_txt=True, animer=True):
     """
     Calcule les harmoniques de Fourier, crée le fichier TXT, lance l'animation 
     et RETOURNE 6 valeurs :
@@ -240,7 +240,7 @@ if __name__ == "__main__":
     x_0, y_0, moteurs, barres, phi, teta = analyser_fourier(
         filename=fichier_choisi, 
         n_circles=nb_moteurs, 
-        period=2.0,
+        period=0.1,
         exporter_txt=True,
         animer=True
     )
