@@ -9,7 +9,7 @@ from programme_coût import tracer_cout_moteur
 from programme_coût import Cout
 
 n_moteur = int(input("Combien de moteurs voulez-vous tester ? "))
-filename = input("Choisissez un fichier à exploiter entre engrenagestest.txt, lion.txt, abeilles.txt et carde.txt : ")
+filename = input("Choisissez un fichier à exploiter entre engrenagestest.txt, lion.txt, abeilles.txt et cadre.txt : ")
 selection = float(input("Choisissez l'image de référence à tester (0 pour le cadre, 1 pour le lion, 2 pour les abeilles et 3 pour les engrenages) : "))
 
 x0, y0, moteurs, barres, phi, teta = analyser_fourier(
