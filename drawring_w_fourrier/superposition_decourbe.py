@@ -61,29 +61,29 @@ for i in range(len(n_moteur)):
 # plt.show()
 
 #si on veut tout sur un seul graphique entre 0 et 1
-# # --- Normalisation des séries ---
-# p_max = max(precisiontot) if max(precisiontot) != 0 else 1
-# e_max = max(energytot) if max(energytot) != 0 else 1
-# c_max = max(cout_total) if max(cout_total) != 0 else 1
+# --- Normalisation des séries ---
+p_max = max(precisiontot) if max(precisiontot) != 0 else 1
+e_max = max(energytot) if max(energytot) != 0 else 1
+c_max = max(cout_total) if max(cout_total) != 0 else 1
 
-# prec_norm = [p / p_max for p in precisiontot]
-# e_norm = [e / e_max for e in energytot]
-# cout_norm = [c / c_max for c in cout_total]
+prec_norm = [p / p_max for p in precisiontot]
+e_norm = [e / e_max for e in energytot]
+cout_norm = [c / c_max for c in cout_total]
 
-# # --- Affichage ---
-# plt.figure(figsize=(8, 5))
-# plt.plot(n_moteur, prec_norm, label="Précision (normalisée)", color="blue", marker="o")
-# plt.plot(n_moteur, e_norm, label="Énergie (normalisée)", color="green", marker="s")
-# plt.plot(n_moteur, cout_norm, label="Coût (normalisé)", color="red", marker="^")
+# --- Affichage ---
+plt.figure(figsize=(8, 5))
+plt.plot(n_moteur, prec_norm, label="Précision (normalisée)", color="blue", marker="o")
+plt.plot(n_moteur, e_norm, label="Énergie (normalisée)", color="green", marker="s")
+plt.plot(n_moteur, cout_norm, label="Coût (normalisé)", color="red", marker="^")
 
-# plt.xlabel("Nombre de moteurs")
-# plt.ylabel("Valeur relative (0 à 1)")
-# plt.title("Évolution relative de la précision, de l'énergie et du coût")
-# plt.legend()
-# plt.grid(True)
-# plt.show()
+plt.xlabel("Nombre de moteurs")
+plt.ylabel("Valeur relative (0 à 1)")
+plt.title("Évolution relative de la précision, de l'énergie et du coût")
+plt.legend()
+plt.grid(True)
+plt.show()
 #
-
+#decommander un bloc ctrl K control U
 # on voit pas bien les courbes
 # plt.plot(n_moteur,precisiontot,label="Precision",color="Blue")
 # plt.plot(n_moteur,energytot,label="Energie",color="green")
@@ -95,31 +95,31 @@ for i in range(len(n_moteur)):
 # plt.grid()
 # plt.show()
 
-def optimiser_moteurs(n_moteur, precisiontot, energytot, cout_total, seuil_precision=0.81):
-    # Normalisation des variables pour qu'elles restent comparables
-    e_max = max(energytot) if max(energytot) > 0 else 1
-    c_max = max(cout_total) if max(cout_total) > 0 else 1
+# def optimiser_moteurs(n_moteur, precisiontot, energytot, cout_total, seuil_precision=0.81):
+#     # Normalisation des variables pour qu'elles restent comparables
+#     e_max = max(energytot) if max(energytot) > 0 else 1
+#     c_max = max(cout_total) if max(cout_total) > 0 else 1
 
-    scores = []
+#     scores = []
     
-    for i in range(len(n_moteur)):
-        p = precisiontot[i]
-        e_norm = energytot[i] / e_max
-        c_norm = cout_total[i] / c_max
+#     for i in range(len(n_moteur)):
+#         p = precisiontot[i]
+#         e_norm = energytot[i] / e_max
+#         c_norm = cout_total[i] / c_max
         
-        # Application d'une forte pénalité si la précision est insuffisante
-        if p < seuil_precision:
-            penalite = 1000  
-        else:
-            penalite = 0
+#         # Application d'une forte pénalité si la précision est insuffisante
+#         if p < seuil_precision:
+#             penalite = 1000  
+#         else:
+#             penalite = 0
             
-        # Score à minimiser (poids à ajuster selon tes priorités)
-        score = 0.5 * e_norm + 0.5 * c_norm + penalite
-        scores.append(score)
+#         # Score à minimiser (poids à ajuster selon tes priorités)
+#         score = 0.5 * e_norm + 0.5 * c_norm + penalite
+#         scores.append(score)
 
-    idx_opt = np.argmin(scores)
-    return n_moteur[idx_opt], precisiontot[idx_opt], energytot[idx_opt], cout_total[idx_opt]
+#     idx_opt = np.argmin(scores)
+#     return n_moteur[idx_opt], precisiontot[idx_opt], energytot[idx_opt], cout_total[idx_opt]
 
-# Utilisation
-m_opt, p_opt, e_opt, c_opt = optimiser_moteurs(n_moteur, precisiontot, energytot, cout_total)
-print(f"Moteurs optimaux : {m_opt} (Précision : {p_opt:.3f}, Énergie : {e_opt:.3f}, Coût : {c_opt} €)")
+# # Utilisation
+# m_opt, p_opt, e_opt, c_opt = optimiser_moteurs(n_moteur, precisiontot, energytot, cout_total)
+# print(f"Moteurs optimaux : {m_opt} (Précision : {p_opt:.3f}, Énergie : {e_opt:.3f}, Coût : {c_opt} €)")
