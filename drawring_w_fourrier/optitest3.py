@@ -10,7 +10,7 @@ from Energie_totale_finale import *
 
 # --- 1. SAISIES ET CALCULS (Code optimisé) ---
 n_moteur_max = int(input("Choisissez le nombre maximal de moteurs : "))
-filename = input("Choisissez un fichier à exploiter entre engrenagestest.txt, lion.txt, abeilles.txt et cadre.txt : ")
+filename = input("Choisissez un fichier à exploiter entre engrenages.txt, lion.txt, abeilles.txt et cadre.txt : ")
 selection = float(input("Choisissez l'image de référence à tester (0 pour le cadre, 1 pour le lion, 2 pour les abeilles et 3 pour les engrenages) : "))
 
 n_moteur = list(range(1, n_moteur_max + 1))

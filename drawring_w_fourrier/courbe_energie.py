@@ -5,7 +5,7 @@ from lebonaimport import analyser_fourier
 from trace_energie_cinetique import trace_tps_energie
 
 n_moteur = int(input("Combien de moteurs voulez-vous tester ? "))
-filename = input("Choisissez un fichier à exploiter entre engrenagestest.txt, lion.txt, abeilles.txt et cadre.txt : ")
+filename = input("Choisissez un fichier à exploiter entre engrenages.txt, lion.txt, abeilles.txt et cadre.txt : ")
 selection = float(input("Choisissez l'image de référence à tester (0 pour le cadre, 1 pour le lion, 2 pour les abeilles et 3 pour les engrenages) : "))
 
 x0, y0, moteurs, barres, phi, teta = analyser_fourier(
