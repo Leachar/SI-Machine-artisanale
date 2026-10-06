@@ -59,7 +59,6 @@ E = np.array(energytot)
 # Valeurs de référence FIXES (pour éviter le décalage quand n_moteur_max change)
 COUT_REF = 800  # Budget/coût max fixe de référence (en €)
 ENERGIE_REF = 15  # Énergie max fixe de référence
-
 # Calcul des grandeurs relatives fixes
 C_norm = C / COUT_REF
 E_norm = E / ENERGIE_REF
